@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Peak Age Packing</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+  <button id="btnBack" class="icon hidden" aria-label="Back">&#8592;</button>
+  <h1 id="title">Peak Age Packing</h1>
+  <button id="btnRefresh" class="icon" aria-label="Refresh">&#8635;</button>
+  <button id="btnSettings" class="icon" aria-label="Settings">&#9881;</button>
+</header>
+
+<main id="view"></main>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="queue" class="active"><span class="tab-label">Not Shipped</span><span class="badge" id="countQueue">0</span></button>
+  <button data-tab="shipped"><span class="tab-label">Shipped</span></button>
+  <button data-tab="lookup"><span class="tab-label">Look Up</span></button>
+</nav>
+
+<input type="file" id="camera" accept="image/*" capture="environment" class="hidden">
+<div id="toast" class="toast hidden"></div>
+
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
