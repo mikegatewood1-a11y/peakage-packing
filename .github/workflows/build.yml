@@ -4,6 +4,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,15 +16,29 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
       - name: Build release APK
-        run: gradle :app:assembleRelease --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          gradle :app:assembleRelease --no-daemon --console=plain 2>&1 | tee build.log
+      - name: Report build errors
+        if: failure()
+        run: |
+          grep -E "^e: |error:|FAILURE|What went wrong|Could not|> " build.log | head -40 | while IFS= read -r line; do
+            echo "::error::${line}"
+          done
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk PeakAge-Packing-${{ github.run_number }}.apk
+        run: cp app/build/outputs/apk/release/app-release.apk PeakAge-Packing.apk
       - uses: actions/upload-artifact@v4
         with:
           name: PeakAge-Packing-apk
-          path: PeakAge-Packing-*.apk
+          path: PeakAge-Packing.apk
+      - name: Publish as latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create latest PeakAge-Packing.apk --title "Peak Age Packing (build ${{ github.run_number }})" --notes "Install PeakAge-Packing.apk on the shipping phone."
