@@ -129,7 +129,7 @@
     q.forEach(function (r, i) { h += orderCard(r, i, 'queue'); });
     var startToday = new Date(); startToday.setHours(0, 0, 0, 0);
     var older = q.filter(function (r) { return new Date(r.order.date_created_gmt ? r.order.date_created_gmt + 'Z' : r.order.date_created) < startToday; });
-    if (older.length) h += '<button class="btn secondary" id="btnClearOld">Clear ' + older.length + ' order' + (older.length === 1 ? '' : 's') + ' from before today (already shipped)</button>';
+    if (older.length) h = '<button class="btn secondary" id="btnClearOld">Clear ' + older.length + ' order' + (older.length === 1 ? '' : 's') + ' from before today (already shipped)</button>' + h;
     $view.innerHTML = h;
     bindCards('queue', q);
     var pb = document.getElementById('btnPrintAll'); if (pb) pb.onclick = function () { printSlips(q); };
@@ -230,7 +230,7 @@
     h += '<button class="btn" id="btnPhoto">' + (r.photos.length ? 'Add another photo' : 'Take photo of packed order') + '</button>';
     h += '<button class="btn secondary" id="btnPrintOne">Print this packing slip</button>';
     if (r.photos.length) h += '<button class="btn secondary" id="btnResend">Email latest photo to customer again</button>';
-    if (!r.photos.length && from === 'queue') h += '<button class="btn secondary" id="btnMarkShipped">Already shipped — remove from list</button>';
+    if (!r.photos.length && from === 'queue') h = '<button class="btn secondary" id="btnMarkShipped">Already shipped — remove from list</button>' + h;
     $view.innerHTML = h;
     window.scrollTo(0, 0);
 
@@ -366,7 +366,7 @@
       f('sDays', 'Days of orders to check', cfg.days, 'number') +
       '<label class="toggle"><input type="checkbox" id="sEmail"' + (cfg.email ? ' checked' : '') + '> Email customers by default</label>' +
       '</div><button class="btn" id="sSave">Save</button><button class="btn secondary" id="sTest">Test connection</button>' +
-      '<p class="small muted" style="text-align:center">Peak Age Packing v1.1</p>';
+      '<p class="small muted" style="text-align:center">Peak Age Packing v1.2</p>';
     function read() {
       return { storeUrl: val('sUrl').replace(/\/+$/, ''), ck: val('sCk'), cs: val('sCs'), wpUser: val('sWpU'), wpPass: val('sWpP'), packer: val('sPacker'),
         startDate: val('sStart') || today(), days: Math.max(1, parseInt(val('sDays'), 10) || 14), email: document.getElementById('sEmail').checked };
