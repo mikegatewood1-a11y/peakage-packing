@@ -5,6 +5,7 @@
   var EXCLUDED_STATUSES = ['cancelled', 'refunded', 'failed', 'pending', 'checkout-draft', 'trash', 'draft'];
   var PHOTO_META = '_pa_pack_photo';
   var PACK_META = '_pa_pack_list';
+  var MANUAL_META = '_pa_marked_shipped';
 
   function b64(s) {
     if (typeof btoa === 'function') return btoa(unescape(encodeURIComponent(s)));
@@ -138,6 +139,7 @@
       rows.forEach(function (r) {
         if (!r || r.error) { errors++; return; }
         if (r.photos.length) shipped.push(r);
+        else if (getMeta(r.order, MANUAL_META)) return; /* cleared by hand: already shipped outside the app */
         else if (r.tracking.length) notShipped.push(r);
       });
       shipped.sort(function (a, b) { return lastPhotoAt(b) < lastPhotoAt(a) ? -1 : 1; });
@@ -273,6 +275,13 @@
     }).then(function () { return photo; });
   }
 
+  /* Mark an order as already shipped (no photo) so it leaves the Not Shipped list. */
+  function markShipped(api, order, by) {
+    return api.call('PUT', '/wc/v3/orders/' + order.id, {
+      body: { meta_data: [{ key: MANUAL_META, value: JSON.stringify({ at: new Date().toISOString(), by: by || '' }) }] }
+    });
+  }
+
   /* ---------- Lookup ---------- */
   function lookup(api, term) {
     term = String(term || '').trim().replace(/^#/, '');
@@ -292,6 +301,6 @@
     createApi: createApi, parseTracking: parseTracking, trackingUrl: trackingUrl, orderPhotos: orderPhotos,
     fetchRecentOrders: fetchRecentOrders, fetchNotes: fetchNotes, loadQueues: loadQueues, fetchPackLists: fetchPackLists,
     buildPackingList: buildPackingList, completePacking: completePacking, emailCustomer: emailCustomer,
-    customerEmailHtml: customerEmailHtml, lookup: lookup, esc: esc, stripTags: stripTags
+    customerEmailHtml: customerEmailHtml, lookup: lookup, markShipped: markShipped, esc: esc, stripTags: stripTags
   };
 })(typeof window !== 'undefined' ? window : globalThis);

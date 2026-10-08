@@ -127,9 +127,20 @@
       (state.loadedAt ? ' · updated ' + state.loadedAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '') + '</div>';
     if (!q.length) h += '<div class="empty">Nothing waiting. Orders appear here once their ShipStation label is printed.</div>';
     q.forEach(function (r, i) { h += orderCard(r, i, 'queue'); });
+    var startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+    var older = q.filter(function (r) { return new Date(r.order.date_created_gmt ? r.order.date_created_gmt + 'Z' : r.order.date_created) < startToday; });
+    if (older.length) h += '<button class="btn secondary" id="btnClearOld">Clear ' + older.length + ' order' + (older.length === 1 ? '' : 's') + ' from before today (already shipped)</button>';
     $view.innerHTML = h;
     bindCards('queue', q);
     var pb = document.getElementById('btnPrintAll'); if (pb) pb.onclick = function () { printSlips(q); };
+    var cb = document.getElementById('btnClearOld');
+    if (cb) cb.onclick = function () {
+      if (!confirm('Mark these ' + older.length + ' orders placed before today as already shipped?\n\n' + older.map(function (r) { return '#' + r.order.number + ' ' + custName(r.order); }).join('\n') + '\n\nNo emails are sent. They stay searchable in Look Up.')) return;
+      var done = busy('Clearing ' + older.length + ' orders…'), failed = 0;
+      Promise.all(older.map(function (r) { return C.markShipped(api(), r.order, cfg.packer).catch(function () { failed++; }); })).then(function () {
+        done(); toast(failed ? failed + ' could not be cleared; try again.' : 'Cleared ' + older.length + ' orders.', !!failed); refresh();
+      });
+    };
   }
 
   function renderShipped() {
@@ -219,6 +230,7 @@
     h += '<button class="btn" id="btnPhoto">' + (r.photos.length ? 'Add another photo' : 'Take photo of packed order') + '</button>';
     h += '<button class="btn secondary" id="btnPrintOne">Print this packing slip</button>';
     if (r.photos.length) h += '<button class="btn secondary" id="btnResend">Email latest photo to customer again</button>';
+    if (!r.photos.length && from === 'queue') h += '<button class="btn secondary" id="btnMarkShipped">Already shipped — remove from list</button>';
     $view.innerHTML = h;
     window.scrollTo(0, 0);
 
@@ -233,6 +245,17 @@
     updateProgress();
     document.getElementById('btnPhoto').onclick = function () { capturePhoto(r, total, checks); };
     document.getElementById('btnPrintOne').onclick = function () { printSlips([r]); };
+    var ms = document.getElementById('btnMarkShipped');
+    if (ms) ms.onclick = function () {
+      if (!confirm('Order #' + o.number + ' was already shipped? It will be removed from Not Shipped. No email is sent.')) return;
+      var done = busy('Updating order…');
+      C.markShipped(api(), o, cfg.packer).then(function () {
+        done();
+        if (state.queue) state.queue = state.queue.filter(function (x) { return x.order.id !== o.id; });
+        document.getElementById('countQueue').textContent = state.queue ? state.queue.length : 0;
+        toast('Removed #' + o.number + ' from the list.'); stack = []; render();
+      }, function (e) { done(); toast('Could not update: ' + e.message, true); });
+    };
     var rs = document.getElementById('btnResend');
     if (rs) rs.onclick = function () {
       if (!confirm('Email the latest packing photo to ' + (o.billing.email || 'the customer') + ' again?')) return;
@@ -343,7 +366,7 @@
       f('sDays', 'Days of orders to check', cfg.days, 'number') +
       '<label class="toggle"><input type="checkbox" id="sEmail"' + (cfg.email ? ' checked' : '') + '> Email customers by default</label>' +
       '</div><button class="btn" id="sSave">Save</button><button class="btn secondary" id="sTest">Test connection</button>' +
-      '<p class="small muted" style="text-align:center">Peak Age Packing v1.0</p>';
+      '<p class="small muted" style="text-align:center">Peak Age Packing v1.1</p>';
     function read() {
       return { storeUrl: val('sUrl').replace(/\/+$/, ''), ck: val('sCk'), cs: val('sCs'), wpUser: val('sWpU'), wpPass: val('sWpP'), packer: val('sPacker'),
         startDate: val('sStart') || today(), days: Math.max(1, parseInt(val('sDays'), 10) || 14), email: document.getElementById('sEmail').checked };
