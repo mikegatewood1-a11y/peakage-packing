@@ -102,3 +102,14 @@ main { padding: 68px 12px 88px; max-width: 760px; margin: 0 auto; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .overlay { position: fixed; inset: 0; background: rgba(15,22,35,.55); z-index: 30; display: flex; align-items: center; justify-content: center; color: #fff; flex-direction: column; font-weight: 700; }
 .overlay .spinner { border-color: rgba(255,255,255,.3); border-top-color: #fff; margin: 0 0 14px; }
+
+/* pick list (all orders) */
+.picklist .pick { padding: 14px 6px; }
+.picklist .pname { display: block; font-size: 1.15em; font-weight: 700; line-height: 1.25; }
+.picklist .pmeta { display: block; font-size: 13px; color: #6b7385; margin-top: 2px; word-break: break-word; }
+.picklist .qty { font-size: 1.6em; }
+.zoom { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.zoom .muted { flex: 1; }
+.zbtn { border: 1px solid var(--line); background: #fff; border-radius: 10px; min-width: 52px; height: 44px; font-size: 16px; font-weight: 700; color: inherit; }
+.zbtn.big { font-size: 22px; }
+.picklist .note { font-size: 13px; }

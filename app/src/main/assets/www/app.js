@@ -122,7 +122,7 @@
     if (state.loading || !state.queue) { $view.innerHTML = loadingHtml(); return; }
     var q = state.queue;
     var h = '';
-    if (q.length) h += '<button class="btn" id="btnPickTicket">Print pick ticket (all items, ' + q.length + ' order' + (q.length === 1 ? '' : 's') + ')</button>' +
+    if (q.length) h += '<button class="btn" id="btnPickTicket">Pick list: all items for ' + q.length + ' order' + (q.length === 1 ? '' : 's') + '</button>' +
       '<button class="btn" id="btnPrintAll">Print all ' + q.length + ' packing slips</button>';
     h += '<div class="section-title">' + q.length + ' order' + (q.length === 1 ? '' : 's') + ' to pack' +
       (state.loadedAt ? ' · updated ' + state.loadedAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '') + '</div>';
@@ -134,7 +134,7 @@
     $view.innerHTML = h;
     bindCards('queue', q);
     var pb = document.getElementById('btnPrintAll'); if (pb) pb.onclick = function () { printSlips(q); };
-    var pt = document.getElementById('btnPickTicket'); if (pt) pt.onclick = function () { printPickTicket(q); };
+    var pt = document.getElementById('btnPickTicket'); if (pt) pt.onclick = function () { openPickList(q); };
     var cb = document.getElementById('btnClearOld');
     if (cb) cb.onclick = function () {
       if (!confirm('Mark these ' + older.length + ' orders placed before today as already shipped?\n\n' + older.map(function (r) { return '#' + r.order.number + ' ' + custName(r.order); }).join('\n') + '\n\nNo emails are sent. They stay searchable in Look Up.')) return;
@@ -335,6 +335,51 @@
       '<div class="foot">Packed by: ________________ &nbsp;&nbsp; Photo taken: &#9744;</div></section>';
   }
 
+  /* ---------- pick list screen (all items across the queue) ---------- */
+  var pickZoom = 1;
+  try { pickZoom = parseFloat(localStorage.getItem('pa_pick_zoom')) || 1; } catch (e) {}
+  function openPickList(rows) {
+    stack.push(function () { render(); });
+    setTitle('Pick List', true);
+    var orders = rows.map(function (r) { return r.order; });
+    var items = C.buildPickList(orders, state.packCache);
+    var checks = state.pickChecks || (state.pickChecks = {});
+    var units = 0;
+    items.forEach(function (t) { if (!t.unknown) units += t.qty; });
+    var h = '<div class="card small"><b>' + orders.length + '</b> order' + (orders.length === 1 ? '' : 's') + ' · <b>' + items.length + '</b> items · <b>' + units + '</b> units' +
+      '<div class="zoom"><span class="muted">Text size</span><button class="zbtn" id="zOut" aria-label="Smaller text">A&minus;</button><button class="zbtn big" id="zIn" aria-label="Larger text">A+</button></div></div>' +
+      '<div class="card picklist" id="pickList">';
+    items.forEach(function (t) {
+      var key = String(t.item).toLowerCase().replace(/\s+/g, '');
+      h += '<label class="pick' + (checks[key] ? ' done' : '') + (t.review ? ' review' : '') + '"><input type="checkbox" data-k="' + esc(key) + '"' + (checks[key] ? ' checked' : '') + '>' +
+        '<span class="what"><span class="pname">' + esc(t.item) + '</span>' +
+        '<span class="pmeta">' + (t.sku ? esc(t.sku) + ' · ' : '') + t.orders.map(function (n) { return '#' + esc(n); }).join(', ') + '</span>' +
+        (t.review ? '<span class="note">⚠ ' + (t.unknown ? 'Quantity not set on some orders; check those slips' : 'Check this item on the slip') + '</span>' : '') + '</span>' +
+        '<span class="qty">' + esc(t.qty) + (t.unknown ? '+?' : '') + '</span></label>';
+    });
+    h += '<div class="progress"><div id="prog"></div></div><div class="small muted" id="progText"></div></div>' +
+      '<button class="btn secondary" id="btnPickReset">Uncheck all</button>' +
+      '<button class="btn secondary" id="btnPickPrint">Print pick list</button>';
+    $view.innerHTML = h;
+    window.scrollTo(0, 0);
+    var list = document.getElementById('pickList');
+    function applyZoom() { list.style.fontSize = (pickZoom * 100) + '%'; try { localStorage.setItem('pa_pick_zoom', String(pickZoom)); } catch (e) {} }
+    applyZoom();
+    document.getElementById('zIn').onclick = function () { pickZoom = Math.min(2.5, Math.round((pickZoom + 0.25) * 100) / 100); applyZoom(); };
+    document.getElementById('zOut').onclick = function () { pickZoom = Math.max(0.75, Math.round((pickZoom - 0.25) * 100) / 100); applyZoom(); };
+    function updateProgress() {
+      var n = items.filter(function (t) { return checks[String(t.item).toLowerCase().replace(/\s+/g, '')]; }).length;
+      document.getElementById('prog').style.width = (items.length ? n / items.length * 100 : 0) + '%';
+      document.getElementById('progText').textContent = n + ' of ' + items.length + ' items pulled';
+    }
+    list.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+      cb.onchange = function () { checks[cb.dataset.k] = cb.checked; cb.parentNode.classList.toggle('done', cb.checked); updateProgress(); };
+    });
+    updateProgress();
+    document.getElementById('btnPickReset').onclick = function () { state.pickChecks = {}; stack.pop(); openPickList(rows); };
+    document.getElementById('btnPickPrint').onclick = function () { printPickTicket(rows); };
+  }
+
   function printPickTicket(rows) {
     var orders = rows.map(function (r) { return r.order; });
     var items = C.buildPickList(orders, state.packCache);
@@ -401,7 +446,7 @@
       f('sDays', 'Days of orders to check', cfg.days, 'number') +
       '<label class="toggle"><input type="checkbox" id="sEmail"' + (cfg.email ? ' checked' : '') + '> Email customers by default</label>' +
       '</div><button class="btn" id="sSave">Save</button><button class="btn secondary" id="sTest">Test connection</button>' +
-      '<p class="small muted" style="text-align:center">Peak Age Packing v1.3</p>';
+      '<p class="small muted" style="text-align:center">Peak Age Packing v1.4</p>';
     function read() {
       return { storeUrl: val('sUrl').replace(/\/+$/, ''), ck: val('sCk'), cs: val('sCs'), wpUser: val('sWpU'), wpPass: val('sWpP'), packer: val('sPacker'),
         startDate: val('sStart') || today(), days: Math.max(1, parseInt(val('sDays'), 10) || 14), email: document.getElementById('sEmail').checked };
