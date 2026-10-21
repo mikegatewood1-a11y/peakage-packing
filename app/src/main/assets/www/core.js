@@ -297,10 +297,29 @@
     });
   }
 
+  /* ---------- Pick ticket: every item across many orders, consolidated ---------- */
+  function buildPickList(orders, packCache) {
+    var totals = {};
+    orders.forEach(function (o) {
+      buildPackingList(o, packCache).lines.forEach(function (ln) {
+        ln.contents.forEach(function (c) {
+          var k = String(c.item).toLowerCase().replace(/\s+/g, '');
+          var t = totals[k] || (totals[k] = { item: c.item, sku: c.sku || '', qty: 0, unknown: false, review: false, orders: [] });
+          if (c.qty === null) t.unknown = true; else t.qty += c.qty;
+          if (c.review) t.review = true;
+          if (!t.sku && c.sku) t.sku = c.sku;
+          if (t.orders.indexOf(o.number) < 0) t.orders.push(o.number);
+        });
+      });
+    });
+    return Object.keys(totals).map(function (k) { return totals[k]; })
+      .sort(function (a, b) { return a.item.localeCompare(b.item, undefined, { sensitivity: 'base', numeric: true }); });
+  }
+
   root.PackCore = {
     createApi: createApi, parseTracking: parseTracking, trackingUrl: trackingUrl, orderPhotos: orderPhotos,
     fetchRecentOrders: fetchRecentOrders, fetchNotes: fetchNotes, loadQueues: loadQueues, fetchPackLists: fetchPackLists,
-    buildPackingList: buildPackingList, completePacking: completePacking, emailCustomer: emailCustomer,
+    buildPackingList: buildPackingList, buildPickList: buildPickList, completePacking: completePacking, emailCustomer: emailCustomer,
     customerEmailHtml: customerEmailHtml, lookup: lookup, markShipped: markShipped, esc: esc, stripTags: stripTags
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -122,7 +122,8 @@
     if (state.loading || !state.queue) { $view.innerHTML = loadingHtml(); return; }
     var q = state.queue;
     var h = '';
-    if (q.length) h += '<button class="btn" id="btnPrintAll">Print all ' + q.length + ' packing slips</button>';
+    if (q.length) h += '<button class="btn" id="btnPickTicket">Print pick ticket (all items, ' + q.length + ' order' + (q.length === 1 ? '' : 's') + ')</button>' +
+      '<button class="btn" id="btnPrintAll">Print all ' + q.length + ' packing slips</button>';
     h += '<div class="section-title">' + q.length + ' order' + (q.length === 1 ? '' : 's') + ' to pack' +
       (state.loadedAt ? ' · updated ' + state.loadedAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '') + '</div>';
     if (!q.length) h += '<div class="empty">Nothing waiting. Orders appear here once their ShipStation label is printed.</div>';
@@ -133,6 +134,7 @@
     $view.innerHTML = h;
     bindCards('queue', q);
     var pb = document.getElementById('btnPrintAll'); if (pb) pb.onclick = function () { printSlips(q); };
+    var pt = document.getElementById('btnPickTicket'); if (pt) pt.onclick = function () { printPickTicket(q); };
     var cb = document.getElementById('btnClearOld');
     if (cb) cb.onclick = function () {
       if (!confirm('Mark these ' + older.length + ' orders placed before today as already shipped?\n\n' + older.map(function (r) { return '#' + r.order.number + ' ' + custName(r.order); }).join('\n') + '\n\nNo emails are sent. They stay searchable in Look Up.')) return;
@@ -333,6 +335,39 @@
       '<div class="foot">Packed by: ________________ &nbsp;&nbsp; Photo taken: &#9744;</div></section>';
   }
 
+  function printPickTicket(rows) {
+    var orders = rows.map(function (r) { return r.order; });
+    var items = C.buildPickList(orders, state.packCache);
+    var units = 0, flagged = 0;
+    var body = items.map(function (t) {
+      if (!t.unknown) units += t.qty;
+      if (t.review) flagged++;
+      return '<tr><td class="box">&#9744;</td><td><div class="it">' + esc(t.item) + '</div>' +
+        (t.sku ? '<div class="sk">' + esc(t.sku) + '</div>' : '') +
+        (t.review ? '<div class="w">&#9888; ' + (t.unknown ? 'Quantity not set for some orders; check those slips' : 'Check this item on the slip') + '</div>' : '') +
+        '</td><td class="q">' + esc(t.qty) + (t.unknown ? '+?' : '') + '</td>' +
+        '<td class="o">' + t.orders.map(function (n) { return '#' + esc(n); }).join(', ') + '</td></tr>';
+    }).join('');
+    var now = new Date();
+    var html = '<!doctype html><html><head><meta charset="utf-8"><style>' +
+      'body{font-family:Arial,sans-serif;margin:0;color:#000}.pt{padding:28px 32px}' +
+      '.top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #000;padding-bottom:10px}.n{font-size:30px;font-weight:800}.sub{font-size:15px;text-align:right}' +
+      'table{width:100%;border-collapse:collapse;margin-top:10px}th{text-align:left;font-size:13px;border-bottom:2px solid #000;padding:6px}' +
+      'td{padding:9px 6px;border-bottom:1px solid #999;vertical-align:top}tr{page-break-inside:avoid}.box{width:30px;font-size:24px;line-height:1}' +
+      '.it{font-size:18px;font-weight:700}.sk{font-size:12px;color:#333}.q{width:70px;text-align:right;font-size:24px;font-weight:800}.o{width:30%;font-size:12px}' +
+      '.w{font-size:12px;font-weight:700}.foot{margin-top:20px;font-size:13px}</style></head><body><section class="pt">' +
+      '<div class="top"><div><div class="n">Pick Ticket</div><div>' + esc(now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })) +
+      ' &middot; ' + esc(now.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })) + '</div></div>' +
+      '<div class="sub"><b>' + orders.length + '</b> order' + (orders.length === 1 ? '' : 's') + ' &middot; <b>' + items.length + '</b> different items &middot; <b>' + units + '</b> units' +
+      (flagged ? '<br>&#9888; ' + flagged + ' item' + (flagged === 1 ? '' : 's') + ' to check' : '') + '</div></div>' +
+      '<table><tr><th></th><th>Item</th><th style="text-align:right">Qty</th><th>Orders</th></tr>' + body + '</table>' +
+      '<div class="foot"><b>Orders on this ticket:</b> ' + orders.map(function (o) { return '#' + esc(o.number) + ' ' + esc(custName(o)); }).join(' &middot; ') +
+      '<br><br>Pulled by: ________________</div></section></body></html>';
+    var job = 'Pick ticket ' + today();
+    if (window.AndroidBridge && window.AndroidBridge.print) window.AndroidBridge.print(html, job);
+    else { var w = window.open('', '_blank'); w.document.write(html); w.document.close(); w.print(); }
+  }
+
   function printSlips(rows) {
     var html = '<!doctype html><html><head><meta charset="utf-8"><style>' +
       'body{font-family:Arial,sans-serif;margin:0;color:#000}.slip{padding:28px 32px;page-break-after:always}.slip:last-child{page-break-after:auto}' +
@@ -366,7 +401,7 @@
       f('sDays', 'Days of orders to check', cfg.days, 'number') +
       '<label class="toggle"><input type="checkbox" id="sEmail"' + (cfg.email ? ' checked' : '') + '> Email customers by default</label>' +
       '</div><button class="btn" id="sSave">Save</button><button class="btn secondary" id="sTest">Test connection</button>' +
-      '<p class="small muted" style="text-align:center">Peak Age Packing v1.2</p>';
+      '<p class="small muted" style="text-align:center">Peak Age Packing v1.3</p>';
     function read() {
       return { storeUrl: val('sUrl').replace(/\/+$/, ''), ck: val('sCk'), cs: val('sCs'), wpUser: val('sWpU'), wpPass: val('sWpP'), packer: val('sPacker'),
         startDate: val('sStart') || today(), days: Math.max(1, parseInt(val('sDays'), 10) || 14), email: document.getElementById('sEmail').checked };
